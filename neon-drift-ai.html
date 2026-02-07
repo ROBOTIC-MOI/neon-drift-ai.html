@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Neon Drift – AI Racers</title>
+<style>
+html,body{margin:0;overflow:hidden;background:#000;font-family:monospace}
+canvas{display:block}
+#ui{
+ position:absolute;inset:0;display:flex;
+ align-items:center;justify-content:center;
+ font-size:26px;color:#0ff;
+ background:rgba(0,0,0,.7);
+ text-shadow:0 0 20px #0ff
+}
+#hud{
+ position:absolute;top:10px;left:10px;
+ color:#0ff;font-size:14px;
+ text-shadow:0 0 10px #0ff
+}
+</style>
+</head>
+<body>
+<div id="ui">CLICK TO START</div>
+<div id="hud"></div>
+<canvas id="c"></canvas>
+
+<script>
+/* ========= CANVAS ========= */
+const c=document.getElementById("c"),ctx=c.getContext("2d");
+function resize(){c.width=innerWidth;c.height=innerHeight}
+addEventListener("resize",resize);resize();
+
+/* ========= AUDIO ========= */
+const AC=window.AudioContext||webkitAudioContext;
+const audio=new AC();
+const master=audio.createGain();
+master.gain.value=.18;
+master.connect(audio.destination);
+
+function kick(t){
+ const o=audio.createOscillator(),g=audio.createGain();
+ o.frequency.setValueAtTime(120,t);
+ o.frequency.exponentialRampToValueAtTime(45,t+.15);
+ g.gain.setValueAtTime(1,t);
+ g.gain.exponentialRampToValueAtTime(.001,t+.15);
+ o.connect(g).connect(master);
+ o.start(t);o.stop(t+.16);
+}
+let bt=audio.currentTime;
+setInterval(()=>{ if(audio.state==="running"){ kick(bt); bt+=1; }},1000);
+
+// engine
+const engine=audio.createOscillator(),eg=audio.createGain();
+engine.type="sawtooth";eg.gain.value=.04;
+engine.connect(eg).connect(master);engine.start();
+
+/* ========= INPUT ========= */
+const keys={};
+addEventListener("keydown",e=>keys[e.key]=1);
+addEventListener("keyup",e=>keys[e.key]=0);
+
+/* ========= TRACK ========= */
+const track={
+ name:"WAVES",
+ length:3000,
+ y:x=>Math.sin(x*.002)*250
+};
+
+/* ========= CAR PHYSICS ========= */
+function makeCar(x,color,isAI=false){
+ return {
+  x,y:track.y(x),a:0,s:0,vx:0,vy:0,
+  color,isAI,
+  targetSpeed:10+Math.random()*2
+ };
+}
+
+const player=makeCar(-1400,"#ff2a6d");
+const aiCars=[
+ makeCar(-1500,"#00faff",true),
+ makeCar(-1600,"#aaff00",true),
+ makeCar(-1700,"#ff9900",true)
+];
+
+const cars=[player,...aiCars];
+
+/* ========= CAMERA ========= */
+const cam={x:0,y:0,z:1};
+
+/* ========= UPDATE ========= */
+function updateCar(car,dt){
+ const acc=.3,max=13,grip=.9;
+
+ // AI control
+ if(car.isAI){
+  const lookAhead=60;
+  const targetY=track.y(car.x+lookAhead);
+  const dy=targetY-car.y;
+  car.a+=Math.sign(dy)*0.015;
+
+  if(car.s<car.targetSpeed) car.s+=acc*.8;
+  if(car.s>car.targetSpeed) car.s-=acc*.5;
+ } 
+ // Player control
+ else{
+  if(keys.w||keys.ArrowUp) car.s+=acc*(1-car.s/max);
+  if(keys.s||keys.ArrowDown) car.s-=.4;
+
+  const steer=Math.min(Math.abs(car.s)/6,1)*.05;
+  if(keys.a||keys.ArrowLeft) car.a-=steer;
+  if(keys.d||keys.ArrowRight) car.a+=steer;
+ }
+
+ car.s=Math.max(-4,Math.min(max,car.s));
+
+ car.vx+=Math.cos(car.a)*car.s*.12;
+ car.vy+=Math.sin(car.a)*car.s*.12;
+
+ const fx=Math.cos(car.a),fy=Math.sin(car.a);
+ const lat=car.vx*-fy+car.vy*fx;
+ car.vx-=lat*-fy*(1-grip);
+ car.vy-=lat*fx*(1-grip);
+
+ car.vx*=.93; car.vy*=.93; car.s*=.98;
+
+ car.x+=car.vx;
+ car.y+=car.vy+(track.y(car.x)-car.y)*.08;
+
+ if(car.x>track.length/2){
+  car.x=-track.length/2;
+ }
+}
+
+function update(dt){
+ cars.forEach(c=>updateCar(c,dt));
+
+ cam.x+=(player.x-cam.x)*.08;
+ cam.y+=(player.y-cam.y)*.08;
+ cam.z+=((1+player.s*.015)-cam.z)*.05;
+
+ engine.frequency.value=120+Math.abs(player.s)*60;
+}
+
+/* ========= DRAW ========= */
+function draw(){
+ ctx.setTransform(1,0,0,1,0,0);
+ ctx.fillStyle="#020214";
+ ctx.fillRect(0,0,c.width,c.height);
+
+ ctx.setTransform(
+  cam.z,0,0,cam.z,
+  c.width/2-cam.x*cam.z,
+  c.height/2-cam.y*cam.z
+ );
+
+ // track
+ ctx.strokeStyle="rgba(255,0,200,.5)";
+ ctx.lineWidth=6;
+ ctx.beginPath();
+ for(let x=-2000;x<2000;x+=40){
+  ctx.lineTo(x,track.y(x));
+ }
+ ctx.stroke();
+
+ // cars
+ cars.forEach(car=>{
+  ctx.save();
+  ctx.translate(car.x,car.y);
+  ctx.rotate(car.a);
+  ctx.shadowBlur=20;
+  ctx.shadowColor=car.color;
+  ctx.fillStyle=car.color;
+  ctx.beginPath();
+  ctx.moveTo(22,0);
+  ctx.lineTo(-16,-10);
+  ctx.lineTo(-6,0);
+  ctx.lineTo(-16,10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+ });
+
+ ctx.setTransform(1,0,0,1,0,0);
+ document.getElementById("hud").textContent=
+  `POSITION: ${
+   cars.sort((a,b)=>b.x-a.x).indexOf(player)+1
+  } / ${cars.length}`;
+}
+
+/* ========= START ========= */
+document.getElementById("ui").onclick=()=>{
+ audio.resume();
+ document.getElementById("ui").style.display="none";
+};
+
+/* ========= LOOP ========= */
+let last=0;
+function loop(t){
+ const dt=Math.min(.033,(t-last)/1000);
+ last=t;
+ update(dt);
+ draw();
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
