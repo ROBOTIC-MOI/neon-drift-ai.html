@@ -135,8 +135,8 @@ function updateCar(car,dt){
 function update(dt){
  cars.forEach(c=>updateCar(c,dt));
 
- cam.x+=(player.x-cam.x)*.08;
- cam.y+=(player.y-cam.y)*.08;
+ cam.x+=(player.x-cam.x)*.09;
+ cam.y+=(player.y-cam.y)*.09;
  cam.z+=((1+player.s*.015)-cam.z)*.05;
 
  engine.frequency.value=120+Math.abs(player.s)*60;
