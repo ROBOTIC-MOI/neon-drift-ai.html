@@ -45,7 +45,7 @@ function kick(t){
  g.gain.setValueAtTime(1,t);
  g.gain.exponentialRampToValueAtTime(.001,t+.15);
  o.connect(g).connect(master);
- o.start(t);o.stop(t+.16);
+ o.start(t);o.stop(t+.19);
 }
 let bt=audio.currentTime;
 setInterval(()=>{ if(audio.state==="running"){ kick(bt); bt+=1; }},1000);
@@ -62,8 +62,8 @@ addEventListener("keyup",e=>keys[e.key]=0);
 
 /* ========= TRACK ========= */
 const track={
- name:"WAVES",
- length:3000,
+ name:"FULL OBBY",
+ length:300000,
  y:x=>Math.sin(x*.002)*250
 };
 
@@ -122,7 +122,7 @@ function updateCar(car,dt){
  car.vx-=lat*-fy*(1-grip);
  car.vy-=lat*fx*(1-grip);
 
- car.vx*=.93; car.vy*=.93; car.s*=.98;
+ car.vx*=.93; car.vy*=.93; car.s*=.99;
 
  car.x+=car.vx;
  car.y+=car.vy+(track.y(car.x)-car.y)*.08;
